@@ -5,8 +5,8 @@ import time
 import sys
 import random
 
-def send_message(node_id,message):
-    queue = "q%d" % node_id
+def send_message(q,node_id,message):
+    queue = "%s%d" % (q,node_id)
     connection = pika.BlockingConnection()
     channel = connection.channel()
     channel.queue_declare(queue=queue)
@@ -15,13 +15,15 @@ def send_message(node_id,message):
             body=message)
     connection.close()
 
-node_id = int(sys.argv[1]) 
-destination = int(sys.argv[2])
+#node_id = int(sys.argv[1]) 
+#destination = int(sys.argv[2])
 
 while True:
-    node_id = int(random.random()*60 + 1)
-    saddr = 0
-    destination = int(random.random() * 60 + 1)
-    daddr = 0
-    send_message(node_id,'{"snet": %d, "saddr": %d, "dnet": %d, "daddr": %d, "route": [], "message": {"time": %d, "body": "Hello2"}}' % (node_id, saddr, destination, daddr, time.time()))
-    time.sleep(5)
+    snet = int(random.random() * 60 + 1)
+    saddr = 1
+    dnet = int(random.random() * 60 + 1)
+    daddr = 1
+
+    if dnet != snet:
+        send_message("q",snet,'{"snet": %d, "saddr": %d, "dnet": %d, "daddr": %d, "route": [], "message": {"time": %d, "body": "Hello"}}' % (snet, saddr, dnet, daddr, time.time()))
+        time.sleep(5)
