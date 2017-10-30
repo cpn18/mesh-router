@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
-#import simple_mesh as mesh
-import soccer_mesh as mesh
 import pika
 import threading
 import time
 import hashlib
 import json
+import sys
+
+import importlib
+mesh = importlib.import_module(sys.argv[1], package=None)
 
 hash_table = []
 expiration = 60
@@ -43,8 +45,8 @@ def get_message(node_id):
     connection.close()
     return messages
 
-def send_message(node_id,message):
-    queue = "q%d" % node_id
+def send_message(q,node_id,message):
+    queue = "%s%d" % (q,node_id)
     connection = pika.BlockingConnection()
     channel = connection.channel()
     channel.queue_declare(queue=queue)
@@ -55,15 +57,15 @@ def send_message(node_id,message):
 
 def router(self, adjacent):
     global done
+    print "Started: %d" % self
     routes = {}
     while not done:
         try:
             for msg in get_message(self):
                 jmsg = json.loads(msg)
                 if not in_hash(self,json.dumps(jmsg['message'])):
+                    drop = False
                     jmsg['route'].append(self)
-                    msg = json.dumps(jmsg)
-                    #print "%d: Sending %s" % (self,msg)
 
                     # Learn shortest route
                     if jmsg['snet'] in routes:
@@ -72,28 +74,33 @@ def router(self, adjacent):
                     else:
                         routes[jmsg['snet']] = jmsg['route'][::-1]
 
+                    # TODO: code to determine if the message should be dropped
+
+                    # Drop message
+                    if drop:
+                        continue
+
+                    # Determine destination route
                     if jmsg['dnet'] in routes: 
                         dest_route = routes[jmsg['dnet']]
                     else:
                         dest_route = []
 
-                    print "%d %d" % (self, jmsg['dnet'])
-                    print "%d %s" % (self, routes)
-                    print "%d %s" % (self, dest_route)
-
+                    # Route/Deliver the Message
+                    msg = json.dumps(jmsg)
                     if jmsg['dnet'] == self:
                         # Deliver message
                         print "%d: Delivered: %s" % (self,msg)
-                        print routes 
+                        send_message("n",jmsg['daddr'],msg)
                     elif len(dest_route) > 1:
                         # Route via learned route
                         print "%d: Routing: %s" % (self,msg)
-                        send_message(dest_route[1],msg)
+                        send_message("q",dest_route[1],msg)
                     else:
                         # Broadcast
                         print "%d: Broadcasting: %s" % (self,msg)
                         for a in adjacent:
-                            send_message(a,msg)
+                            send_message("q",a,msg)
                 else:
                     pass
                     #print "%d: %s" % (self, msg)
@@ -112,9 +119,12 @@ for node in mesh.route_table:
     hash_table.append({})
     tlist.append(t)
     t.start()
-    print node
 
-#time.sleep(120)
-#done = True
-#for t in tlist:
-#    t.join()
+while not done:
+    try:
+        time.sleep(120)
+    except KeyboardInterrupt:
+        done = True
+
+for t in tlist:
+    t.join()
