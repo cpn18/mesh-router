@@ -1,3 +1,6 @@
+"""
+Soccer ball mesh network
+"""
 route_table = {
     1: [2, 6, 10],
     2: [1, 3, 12],
