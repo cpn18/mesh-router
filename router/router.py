@@ -23,7 +23,9 @@ def in_hash(self, msg):
     """
     global HASH_TABLE
     expiration = 60
-    key = hashlib.md5().update(msg).digest()
+    m = hashlib.md5()
+    m.update(msg)
+    key = m.digest()
     now = time.time()
     if key in HASH_TABLE[self]:
         retval = HASH_TABLE[self][key] > 0
@@ -51,11 +53,11 @@ def get_message(node_id):
     connection.close()
     return messages
 
-def send_message(queue_prefix, node_id, message):
+def send_message(queue, node_id, message):
     """
     Send a Message
     """
-    queue = "%s%d" % (queue_prefix, node_id)
+    #queue = "%s%d" % (queue_prefix, node_id)
     connection = pika.BlockingConnection()
     channel = connection.channel()
     channel.queue_declare(queue=queue)
@@ -104,7 +106,7 @@ def router(self, adjacent):
                 if jmsg['dnet'] == self:
                     # Deliver message
                     print("%d: Delivered: %s" % (self, msg))
-                    send_message("n", jmsg['daddr'], msg)
+                    send_message("n%d_%d" % (jmsg['dnet'], jmsg['daddr']), jmsg['daddr'], msg)
                     continue
 
                 dest_route = get_destination_route(jmsg['dnet'], routes)
@@ -112,13 +114,13 @@ def router(self, adjacent):
                 if len(dest_route) > 1:
                     # Route via learned route
                     print("%d: Routing: %s" % (self, msg))
-                    send_message("q", dest_route[1], msg)
+                    send_message("q%d" % dest_route[1], dest_route[1], msg)
                     continue
 
                 # Broadcast
                 print("%d: Broadcasting: %s" % (self, msg))
                 for each_node in adjacent:
-                    send_message("q", each_node, msg)
+                    send_message("q%d" % each_node, each_node, msg)
 
         except IOError:
             break
